@@ -30,8 +30,13 @@ jobs:
           pip install -e .
           pip install pytest
 
-      - name: Run tests
+      - name: Run tests (GPU-dependent tests may be skipped)
         run: pytest -q tests
+
+      - name: Note skip conditions
+        run: |
+          echo "Note: This CI job runs on ubuntu-latest (CPU runner)."
+          echo "Tests guarded by CUDA/GPU skip conditions are expected to be skipped."
 
   build:
     name: Build package
