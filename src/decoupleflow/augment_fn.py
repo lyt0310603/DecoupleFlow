@@ -1,6 +1,8 @@
 import torch
 from torch.utils.data import DataLoader, Dataset
 import random
+import nltk
+from torchvision import transforms
 from nltk.corpus import wordnet
 
 class _AugmentedDataset(Dataset):
@@ -118,6 +120,32 @@ def _extract_unique_words(dataset):
         words = sentence.split()
         unique_words.update(words)
     return unique_words
+
+def _ensure_wordnet_available(auto_download=False):
+    """Ensure NLTK WordNet corpus is available before NLP augmentation.
+
+    Args:
+        auto_download: If True, try downloading missing corpus automatically.
+
+    Raises:
+        RuntimeError: If corpus is missing and cannot be downloaded.
+    """
+    try:
+        wordnet.synsets("test")
+    except LookupError as exc:
+        if auto_download:
+            download_ok = nltk.download("wordnet", quiet=True)
+            if download_ok:
+                return
+            raise RuntimeError(
+                "Failed to auto-download NLTK 'wordnet'. "
+                "Please run: import nltk; nltk.download('wordnet')"
+            ) from exc
+        raise RuntimeError(
+            "NLTK 'wordnet' corpus is required for NLP_augment but is not installed. "
+            "Run: import nltk; nltk.download('wordnet') "
+            "or call NLP_augment(..., auto_download_wordnet=True)."
+        ) from exc
     
 def _get_synonyms(dataset):
     """Build token-to-synonyms mapping from WordNet.
@@ -159,8 +187,7 @@ def _synonym_replacement(sentence, probability, synonyms):
         return sentence
 
     words_to_replace = random.sample(eligible_words, min(num_words, len(eligible_words)))
-    
-    new_words = words.copy()    
+       
     new_words = []
     for word in words:
         if word in words_to_replace:
@@ -210,6 +237,8 @@ def _random_swap(sentence, probability):
         str: Augmented sentence.
     """
     words = sentence.split()
+    if len(words) <= 1:
+        return sentence
     num_words = max(1, int(probability * len(words)))
     for _ in range(num_words):
         idx1 = random.randint(0, len(words)-1)
@@ -228,7 +257,7 @@ def _random_deletion(sentence, probability):
         str: Augmented sentence.
     """
     words = sentence.split()
-    if len(words) == 1:
+    if len(words) <= 1:
         return sentence
 
     new_words = []
@@ -257,17 +286,19 @@ def Vision_augment(data_loader, image_size=32, mean=(0.5, 0.5, 0.5), std=(0.5, 0
     augmented_data_loader = DataLoader(augmented_dataset, batch_size=2*data_loader.batch_size, shuffle=True)
     return augmented_data_loader
 
-def NLP_augment(original_sentences, original_labels, probability=0.1):
+def NLP_augment(original_sentences, original_labels, probability=0.1, auto_download_wordnet=False):
     """Create NLP-augmented sentences and labels.
 
     Args:
         original_sentences: Input sentence list.
         original_labels: Label list aligned with sentences.
         probability: Augmentation strength factor.
+        auto_download_wordnet: Whether to auto-download missing WordNet corpus.
 
     Returns:
         Tuple[list, list]: Augmented sentences and labels.
     """
+    _ensure_wordnet_available(auto_download=auto_download_wordnet)
     synonyms = _get_synonyms(original_sentences)
     augmented_sentences, augmented_labels = _nlp_transform(original_sentences, original_labels, synonyms, probability)
     return augmented_sentences, augmented_labels
