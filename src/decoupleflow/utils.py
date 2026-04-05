@@ -131,6 +131,8 @@ class CPUThread(threading.Thread):
         self._target = target
         self._args = args
         self._kwargs = kwargs
+        self.__result__ = None
+        self.__exception__ = None
 
     def run(self):
         """Execute target function and store result safely."""
@@ -138,8 +140,9 @@ class CPUThread(threading.Thread):
             return
         try:
             self.__result__ = self._target(*self._args, **self._kwargs)
-        except Exception as e:  
+        except Exception as e:
             self.__result__ = None
+            self.__exception__ = e
     
     def get_result(self):
         """Wait for thread completion and fetch result.
@@ -151,8 +154,10 @@ class CPUThread(threading.Thread):
             ValueError: If thread execution failed or returned no result.
         """
         self.join()
-        if self.__result__ is None:
-            raise ValueError(f"Here are some error in loss backward, please check your model structure")
+        if self.__exception__ is not None:
+            raise ValueError(
+                "Here are some error in loss backward, please check your model structure"
+            ) from self.__exception__
         else:
             return self.__result__
 
