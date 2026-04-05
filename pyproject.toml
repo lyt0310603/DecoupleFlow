@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "decoupleflow"
-version = "0.1.0"
-description = "DecoupleFlow package"
+dynamic = ["version"]
+description = "PyTorch toolkit for converting user-defined models into decoupled training architectures with model partitioning and multi-device execution."
 readme = "README.md"
 authors = [{name = "You-Teng, Lin", email = "lyt0310603@gmail.com"}]
 license = {text = "MIT"}
@@ -21,3 +21,10 @@ package-dir = {"" = "src"}
 [tool.setuptools.packages.find]
 where = ["src"]
 include = ["decoupleflow*"]
+
+[tool.setuptools.dynamic]
+version = {attr = "decoupleflow.__version__"}
+
+[project.urls]
+Repository = "https://github.com/lyt0310603/DecoupleFlow"
+Documentation = "https://hackmd.io/@b3NdIM1JStCqtPPOfgoapw/HyM1ei860"
