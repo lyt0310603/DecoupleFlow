@@ -83,6 +83,7 @@ output, labels = model.test_step(x, y)
 ```
 
 ## Documentation
-Detailed usage instructions (Chinese only): [Here](https://hackmd.io/@b3NdIM1JStCqtPPOfgoapw/HyM1ei860)
+- Detailed usage instructions (Chinese): [Here](https://github.com/lyt0310603/DecoupleFlow/blob/main/docs/tutorial_ch.md)
+- Detailed usage instructions (English): [Here](https://github.com/lyt0310603/DecoupleFlow/blob/main/docs/tutorial_en.md)
 
 
