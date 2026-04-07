@@ -428,3 +428,90 @@ model.scheduler_step()
 - **`device_map cannot be None`**: you did not provide `device_map`.
 - **`Cannot distribute transform_funcs`**: length of `transform_funcs` does not match number of blocks.
 - **`DeInfo Loss need pass class nums`**: you must provide `num_classes` when `loss_fn="DeInfo"`.
+
+## Data Augmentation Utilities (`augment_fn`)
+
+Because DecoupleFlow local loss is closely related to contrastive learning ideas, training is usually paired with data augmentation so the model can learn perturbation-robust consistent features. To reduce integration cost, `augment_fn` provides ready-to-use augmentation utilities for quickly building augmented data. This is not mandatory: you can still design and apply your own augmentation strategy based on your task.
+
+Currently, `src/decoupleflow/augment_fn.py` provides two ready-to-use functions:
+
+- `Vision_augment`: image augmentation for vision tasks (strong/weak pair per sample)
+- `NLP_augment`: text augmentation for NLP tasks (supports synonym replacement, random insertion, random swap, random deletion; each generated augmented sentence applies only one method)
+
+### `Vision_augment` Usage
+
+`Vision_augment(dataset, image_size=32, mean=(...), std=(...))`
+
+- **Input**
+  - `dataset`: source `Dataset`; its `__getitem__` should return `(image, label)`, and `image` should be a PIL image
+    - no image preprocessing is needed beforehand (for example Resize/ToTensor/Normalize); those are handled inside `src/decoupleflow/augment_fn.py`
+  - `image_size`: resize / random crop size
+  - `mean`, `std`: normalization parameters
+- **Output**
+  - returns a new `Dataset`
+  - output sample count is doubled (each sample generates two augmented views)
+    - each sample creates strong/weak views with Resize, RandomCrop, and RandomHorizontalFlip
+    - strong view additionally applies ColorJitter and RandomGrayscale
+  - you can wrap it with your own `DataLoader` and control options yourself (`batch_size`, `shuffle`, `num_workers`, etc.)
+
+```python
+from torch.utils.data import DataLoader
+from torchvision.datasets import CIFAR10
+from decoupleflow.augment_fn import Vision_augment
+
+# Make CIFAR10 return PIL images; preprocessing is handled inside Vision_augment
+train_dataset = CIFAR10(
+    root="./data",
+    train=True,
+    download=True,
+    transform=None,
+)
+
+aug_dataset = Vision_augment(
+    train_dataset,
+    image_size=32,
+    mean=(0.4914, 0.4822, 0.4465),
+    std=(0.2470, 0.2435, 0.2616),
+)
+
+aug_loader = DataLoader(aug_dataset, batch_size=128, shuffle=True)
+images, labels = next(iter(aug_loader))
+print(images.shape[0])  # 128
+```
+
+### `NLP_augment` Usage
+
+`NLP_augment(original_sentences, original_labels, probability=0.1, auto_download_wordnet=False, num_augments_per_sentence=2, include_original=False)`
+
+- **Input**
+  - `original_sentences`: list of input sentences
+  - `original_labels`: aligned label list (must have same length as sentences)
+  - `probability`: augmentation parameter; for synonym replacement / random insertion / random swap it acts like an operation ratio (approximately `probability * token_count`, with at least 1 operation), and for random deletion it is the per-token deletion probability
+  - `auto_download_wordnet`: whether to auto-download NLTK `wordnet` (recommended as `True` on first run)
+  - `num_augments_per_sentence`: number of augmented outputs generated per input sentence (must be >= 1)
+  - `include_original`: whether to include the original sentence in outputs
+- **Output**
+  - `augmented_sentences, augmented_labels`
+  - by default, each original sentence generates 2 augmented sentences, so output length is approximately `2 * len(original_sentences)`
+    - available methods: synonym replacement, random insertion, random swap, random deletion
+  - when `include_original=True`, one extra original sentence is kept per input, so output length is approximately `(num_augments_per_sentence + 1) * len(original_sentences)`
+
+```python
+from decoupleflow.augment_fn import NLP_augment
+
+sentences = ["this movie is great", "service is very slow"]
+labels = [1, 0]
+
+aug_sentences, aug_labels = NLP_augment(
+    sentences,
+    labels,
+    probability=0.1,
+    auto_download_wordnet=True,
+    num_augments_per_sentence=2,
+    include_original=False,
+)
+
+print(len(aug_sentences), len(aug_labels))  # 4 4
+```
+
+> Note: If `wordnet` is not installed, run `import nltk; nltk.download("wordnet")` first, or set `auto_download_wordnet=True` when calling `NLP_augment`.

@@ -428,3 +428,90 @@ model.scheduler_step()
 - **`device_map cannot be None`**：你沒有提供 `device_map`。
 - **`Cannot distribute transform_funcs`**：`transform_funcs` 長度與 Block 數不一致。
 - **`DeInfo Loss need pass class nums`**：`loss_fn="DeInfo"` 時必須提供 `num_classes`。
+
+## 資料增強工具（`augment_fn`）
+
+由於 DecoupleFlow 的 local loss 設計與對比學習概念密切相關，訓練時通常會搭配資料增強，幫助模型學到對輸入擾動更穩健的一致特徵。為了降低整合成本，`augment_fn` 提供可直接使用的資料增強工具，讓你快速產生增強後資料；但這不是強制流程，你仍可依任務需求自行設計與套用資料增強策略。
+
+目前 `src/decoupleflow/augment_fn.py` 提供兩個可直接使用的增強函式：
+
+- `Vision_augment`：影像分類資料增強（每筆資料產生 strong/weak 兩個版本）
+- `NLP_augment`：文字資料增強（可用同義詞替換、隨機插入、隨機交換、隨機刪除；每次產生單一句增強時只會套用其中一種方法）
+
+### `Vision_augment` 用法
+
+`Vision_augment(dataset, image_size=32, mean=(...), std=(...))`
+
+- **輸入**
+  - `dataset`：原始 `Dataset`，其 `__getitem__` 需回傳 `(image, label)`，且 `image` 需為 PIL 影像
+    - 不需要先做影像前處理（如 Resize、ToTensor、Normalize）；這些會在 `src/decoupleflow/augment_fn.py` 內部完成
+  - `image_size`：Resize / RandomCrop 的尺寸
+  - `mean`, `std`：影像正規化參數
+- **輸出**
+  - 回傳新的 `Dataset`
+  - 新的資料筆數會是原本的 2 倍
+    - 每筆樣本會產生 strong/weak 兩個版本：皆含 Resize、RandomCrop、RandomHorizontalFlip
+    - 其中 strong 額外加入 ColorJitter 與 RandomGrayscale
+  - 你可以再自行用 `DataLoader` 包裝（例如自行決定 `batch_size`、`shuffle`、`num_workers`）
+
+```python
+from torch.utils.data import DataLoader
+from torchvision.datasets import CIFAR10
+from decoupleflow.augment_fn import Vision_augment
+
+# 讓 CIFAR10 回傳 PIL Image；前處理會在 Vision_augment 內部完成
+train_dataset = CIFAR10(
+    root="./data",
+    train=True,
+    download=True,
+    transform=None,
+)
+
+aug_dataset = Vision_augment(
+    train_dataset,
+    image_size=32,
+    mean=(0.4914, 0.4822, 0.4465),
+    std=(0.2470, 0.2435, 0.2616),
+)
+
+aug_loader = DataLoader(aug_dataset, batch_size=128, shuffle=True)
+images, labels = next(iter(aug_loader))
+print(images.shape[0])  # 128
+```
+
+### `NLP_augment` 用法
+
+`NLP_augment(original_sentences, original_labels, probability=0.1, auto_download_wordnet=False, num_augments_per_sentence=2, include_original=False)`
+
+- **輸入**
+  - `original_sentences`：原始句子 list
+  - `original_labels`：對應標籤 list（長度需與句子一致）
+  - `probability`：增強參數；在同義詞替換/隨機插入/隨機交換中表示操作比例（約為 `probability * 詞數`，且至少執行 1 次操作），在隨機刪除中表示每個詞被刪除的機率
+  - `auto_download_wordnet`：是否自動下載 NLTK `wordnet`（首次使用建議設為 `True`）
+  - `num_augments_per_sentence`：每個原始句子要產生幾個增強句（至少為 1）
+  - `include_original`：是否把原句也一起放入輸出
+- **輸出**
+  - `augmented_sentences, augmented_labels`
+  - 預設每個原始句子會產生 2 個增強句，因此輸出長度約為 `2 * len(original_sentences)`
+    - 增強方法包含：同義詞替換（synonym replacement）、隨機插入（random insertion）、隨機交換（random swap）、隨機刪除（random deletion）
+  - 若 `include_original=True`，則每句會多保留 1 筆原句，輸出長度約為 `(num_augments_per_sentence + 1) * len(original_sentences)`
+
+```python
+from decoupleflow.augment_fn import NLP_augment
+
+sentences = ["this movie is great", "service is very slow"]
+labels = [1, 0]
+
+aug_sentences, aug_labels = NLP_augment(
+    sentences,
+    labels,
+    probability=0.1,
+    auto_download_wordnet=True,
+    num_augments_per_sentence=2,
+    include_original=False,
+)
+
+print(len(aug_sentences), len(aug_labels))  # 4 4
+```
+
+> 注意：若未安裝 `wordnet`，可先執行 `import nltk; nltk.download("wordnet")`，或在呼叫 `NLP_augment` 時設定 `auto_download_wordnet=True`。
