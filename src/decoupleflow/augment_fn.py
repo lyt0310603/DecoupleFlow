@@ -84,7 +84,14 @@ class _vision_transform:
         weak_image = self.weak_transform(image)
         return strong_image, weak_image
 
-def _nlp_transform(original_sentences, original_labels, synonyms, probability):
+def _nlp_transform(
+    original_sentences,
+    original_labels,
+    synonyms,
+    probability,
+    num_augments_per_sentence,
+    include_original,
+):
         """Apply random text augmentations per sentence.
 
         Args:
@@ -92,6 +99,8 @@ def _nlp_transform(original_sentences, original_labels, synonyms, probability):
             original_labels: Label list aligned with sentences.
             synonyms: Word-to-synonyms dictionary.
             probability: Augmentation strength factor.
+            num_augments_per_sentence: Number of augmented outputs per sentence.
+            include_original: Whether to keep original sentence in outputs.
 
         Returns:
             Tuple[list, list]: Augmented sentences and corresponding labels.
@@ -106,8 +115,15 @@ def _nlp_transform(original_sentences, original_labels, synonyms, probability):
         augmented_sentences = []
         augmented_labels = []
         for sentence, label in zip(original_sentences, original_labels):
-            used_augmentation_num = 2
-            chosen_augmentations = random.sample(list(AUGMENTATION_METHODS.values()), used_augmentation_num)
+            if include_original:
+                augmented_sentences.append(sentence)
+                augmented_labels.append(label)
+
+            methods = list(AUGMENTATION_METHODS.values())
+            if num_augments_per_sentence <= len(methods):
+                chosen_augmentations = random.sample(methods, num_augments_per_sentence)
+            else:
+                chosen_augmentations = random.choices(methods, k=num_augments_per_sentence)
 
             for i in range(len(chosen_augmentations)):
                 augment_fn = chosen_augmentations[i]['fn']
@@ -326,7 +342,14 @@ def Vision_augment(data_loader, image_size=32, mean=(0.5, 0.5, 0.5), std=(0.5, 0
     augmented_data_loader = DataLoader(augmented_dataset, **loader_kwargs)
     return augmented_data_loader
 
-def NLP_augment(original_sentences, original_labels, probability=0.1, auto_download_wordnet=False):
+def NLP_augment(
+    original_sentences,
+    original_labels,
+    probability=0.1,
+    auto_download_wordnet=False,
+    num_augments_per_sentence=2,
+    include_original=False,
+):
     """Create NLP-augmented sentences and labels.
 
     Args:
@@ -335,11 +358,26 @@ def NLP_augment(original_sentences, original_labels, probability=0.1, auto_downl
             original_sentences).
         probability: Augmentation strength factor.
         auto_download_wordnet: Whether to auto-download missing WordNet corpus.
+        num_augments_per_sentence: Number of augmented outputs generated per
+            input sentence.
+        include_original: Whether to include the original sentence in outputs.
 
     Returns:
         Tuple[list, list]: Augmented sentences and labels.
     """
+    if len(original_sentences) != len(original_labels):
+        raise ValueError("original_sentences and original_labels must have same length.")
+    if num_augments_per_sentence < 1:
+        raise ValueError("num_augments_per_sentence must be >= 1.")
+
     _ensure_wordnet_available(auto_download=auto_download_wordnet)
     synonyms = _get_synonyms(original_sentences)
-    augmented_sentences, augmented_labels = _nlp_transform(original_sentences, original_labels, synonyms, probability)
+    augmented_sentences, augmented_labels = _nlp_transform(
+        original_sentences,
+        original_labels,
+        synonyms,
+        probability,
+        num_augments_per_sentence,
+        include_original,
+    )
     return augmented_sentences, augmented_labels
