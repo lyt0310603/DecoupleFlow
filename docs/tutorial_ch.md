@@ -53,7 +53,7 @@ DecoupleFlow 是一個 Python 套件，用來把你已經寫好的模型（通�
 - **局部損失（local loss）**：中間 Block 的 loss 可使用 `CL`（Supervised Contrastive）或 `DeInfo`（information regularization），最後一個 Block（在非 adaptive 模式）會強制使用 `CE`（CrossEntropy）。
 - **訓練迴圈盡量保持 PyTorch 習慣**：你仍然可以用 `model.train()` / `model.eval()` 控制模式，並在每步呼叫 `model(X, Y)` 進行訓練或推理。
 
-![DecoupleFlow partition](fig/partirion.png)
+![DecoupleFlow partition](fig/partition.png)
 * 上圖為 DecoupleFlow 分割策略示意圖，左側為使用 Pytorch 搭建的模型，右側為使用 DecoupleFlow 重構後的模型。
 
 ## 輸入輸出

@@ -53,7 +53,7 @@ The project is hosted on GitHub, and the package name in `pyproject.toml` is `de
 - **Local Loss**: Intermediate blocks can use `CL` (Supervised Contrastive) or `DeInfo` (information regularization). In non-adaptive mode, the final block is forced to use `CE` (CrossEntropy).
 - **PyTorch-like Training Loop**: You can still use `model.train()` / `model.eval()` and call `model(X, Y)` each step for training/inference.
 
-![DecoupleFlow partition](fig/partirion.png)
+![DecoupleFlow partition](fig/partition.png)
 *The figure above illustrates DecoupleFlow partitioning strategy: the left side is a model built in PyTorch, and the right side is the model after DecoupleFlow refactoring.*
 
 ## Input / Output
