@@ -6,16 +6,12 @@ Public APIs for users:
 """
 
 import torch
-from torch.utils.data import DataLoader, Dataset
+from torch.utils.data import Dataset
 import random
 import nltk
 from torchvision import transforms
 from nltk.corpus import wordnet
 
-
-def _is_shuffle_enabled(data_loader):
-    """Infer shuffle behavior from dataloader sampler type."""
-    return isinstance(data_loader.sampler, torch.utils.data.RandomSampler)
 
 class _AugmentedDataset(Dataset):
     """Dataset wrapper that materializes two augmented samples per item."""
@@ -297,50 +293,21 @@ def _random_deletion(sentence, probability):
     return ' '.join(new_words)
         
             
-def Vision_augment(data_loader, image_size=32, mean=(0.5, 0.5, 0.5), std=(0.5, 0.5, 0.5)):
-    """Create vision-augmented dataloader.
+def Vision_augment(dataset, image_size=32, mean=(0.5, 0.5, 0.5), std=(0.5, 0.5, 0.5)):
+    """Create vision-augmented dataset.
 
     Args:
-        data_loader: Source dataloader. Its dataset should return (image, label),
-            where image is PIL image or image-like input accepted by torchvision.
+        dataset: Source dataset. It should return (image, label), where image is
+            PIL image or image-like input accepted by torchvision.
         image_size: Resize/crop image size.
         mean: Normalize mean.
         std: Normalize std.
 
     Returns:
-        DataLoader: Dataloader over augmented dataset. Loader runtime options
-        (shuffle behavior, workers, pin memory, collate_fn, drop_last, etc.)
-        are inherited from the source dataloader when possible.
+        Dataset: Augmented dataset with 2x samples (strong + weak view per input).
     """
-    if data_loader.batch_size is None:
-        raise ValueError(
-            "Vision_augment requires source DataLoader.batch_size to be set."
-        )
-
-    augmented_dataset = _AugmentedDataset(data_loader.dataset, image_size=image_size, mean=mean, std=std)
-
-    loader_kwargs = {
-        "batch_size": 2 * data_loader.batch_size,
-        "shuffle": _is_shuffle_enabled(data_loader),
-        "num_workers": data_loader.num_workers,
-        "collate_fn": data_loader.collate_fn,
-        "pin_memory": data_loader.pin_memory,
-        "drop_last": data_loader.drop_last,
-        "timeout": data_loader.timeout,
-        "worker_init_fn": data_loader.worker_init_fn,
-        "generator": data_loader.generator,
-    }
-    if hasattr(data_loader, "prefetch_factor"):
-        loader_kwargs["prefetch_factor"] = data_loader.prefetch_factor
-    if hasattr(data_loader, "persistent_workers"):
-        loader_kwargs["persistent_workers"] = data_loader.persistent_workers
-    if hasattr(data_loader, "pin_memory_device"):
-        loader_kwargs["pin_memory_device"] = data_loader.pin_memory_device
-    if hasattr(data_loader, "multiprocessing_context"):
-        loader_kwargs["multiprocessing_context"] = data_loader.multiprocessing_context
-
-    augmented_data_loader = DataLoader(augmented_dataset, **loader_kwargs)
-    return augmented_data_loader
+    augmented_dataset = _AugmentedDataset(dataset, image_size=image_size, mean=mean, std=std)
+    return augmented_dataset
 
 def NLP_augment(
     original_sentences,
