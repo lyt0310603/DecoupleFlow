@@ -1,3 +1,10 @@
+"""Data augmentation helpers for vision and NLP tasks.
+
+Public APIs for users:
+- Vision_augment: build a dataloader with two image augmentations per sample.
+- NLP_augment: build augmented sentence/label pairs for text classification.
+"""
+
 import torch
 from torch.utils.data import DataLoader, Dataset
 import random
@@ -8,16 +15,15 @@ from nltk.corpus import wordnet
 class _AugmentedDataset(Dataset):
     """Dataset wrapper that materializes two augmented samples per item."""
 
-    def __init__(self, original_dataset, data_type, **kwargs):
+    def __init__(self, original_dataset, **kwargs):
         self.original_dataset = original_dataset
         self.augmented_dataset = []
-        self._make_augmentation(data_type, kwargs)
+        self._make_augmentation(kwargs)
         
-    def _make_augmentation(self, data_type, kwargs): 
+    def _make_augmentation(self, kwargs): 
         """Create and store augmented samples.
 
         Args:
-            data_type: Augmentation data type selector.
             kwargs: Parameters for augmentation transform construction.
         """
         transform_function = _vision_transform(**kwargs)            
@@ -274,7 +280,8 @@ def Vision_augment(data_loader, image_size=32, mean=(0.5, 0.5, 0.5), std=(0.5, 0
     """Create vision-augmented dataloader.
 
     Args:
-        data_loader: Source dataloader.
+        data_loader: Source dataloader. Its dataset should return (image, label),
+            where image is PIL image or image-like input accepted by torchvision.
         image_size: Resize/crop image size.
         mean: Normalize mean.
         std: Normalize std.
@@ -282,7 +289,7 @@ def Vision_augment(data_loader, image_size=32, mean=(0.5, 0.5, 0.5), std=(0.5, 0
     Returns:
         DataLoader: Dataloader over augmented dataset.
     """
-    augmented_dataset = _AugmentedDataset(data_loader.dataset, "Vision", image_size=image_size, mean=mean, std=std)
+    augmented_dataset = _AugmentedDataset(data_loader.dataset, image_size=image_size, mean=mean, std=std)
     augmented_data_loader = DataLoader(augmented_dataset, batch_size=2*data_loader.batch_size, shuffle=True)
     return augmented_data_loader
 
@@ -291,7 +298,8 @@ def NLP_augment(original_sentences, original_labels, probability=0.1, auto_downl
 
     Args:
         original_sentences: Input sentence list.
-        original_labels: Label list aligned with sentences.
+        original_labels: Label list aligned with sentences (same length as
+            original_sentences).
         probability: Augmentation strength factor.
         auto_download_wordnet: Whether to auto-download missing WordNet corpus.
 
