@@ -1,5 +1,5 @@
 ---
-title: 'DecoupleFlow: A Python package for adapting deep learning models into decoupled architectures'
+title: 'DecoupleFlow: A Python package for building decoupled training workflows'
 tags:
   - Python
   - machine learning
